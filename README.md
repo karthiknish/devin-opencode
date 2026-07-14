@@ -1,11 +1,11 @@
 # devin-opencode
 
-An [OpenCode v2](https://v2.opencode.ai/) plugin that connects your [Devin](https://devin.ai) account and lets the OpenCode agent drive cloud Devin sessions.
+An [OpenCode](https://opencode.ai/) plugin that connects your [Devin](https://devin.ai) account and lets the OpenCode agent drive cloud Devin sessions. Supports both **OpenCode v1** (stable) and **OpenCode v2** (beta).
 
 ## What it does
 
-- Registers a **Devin** integration so you can connect via `/connect` in the OpenCode TUI (API key stored as a credential) or by setting the `DEVIN_API_KEY` environment variable.
-- Adds tools the OpenCode agent can call to create, list, inspect, message, and terminate cloud Devin sessions.
+- Connects your Devin account using your Devin API key
+- Adds tools the OpenCode agent can call to create, list, inspect, message, and terminate cloud Devin sessions
 
 | Tool | Purpose |
 | --- | --- |
@@ -16,14 +16,26 @@ An [OpenCode v2](https://v2.opencode.ai/) plugin that connects your [Devin](http
 | `devin_send_message` | Send a follow-up message to an active session |
 | `devin_terminate_session` | Stop a running session |
 
+### Differences between v1 and v2
+
+| Feature | OpenCode v1 (stable) | OpenCode v2 (beta) |
+| --- | --- | --- |
+| Entry point | `opencode-devin-plugin/legacy` | `opencode-devin-plugin` |
+| Config field | `"plugin"` (singular) | `"plugins"` (plural) |
+| Auth | `DEVIN_API_KEY` env var only | `/connect` TUI flow **or** `DEVIN_API_KEY` env var |
+| Binary | `opencode` | `opencode2` |
+| Plugin API | Named export function + hooks | `Plugin.define` + integration system |
+
 ## Prerequisites
 
-- OpenCode v2 beta (`@opencode-ai/cli@next`, binary `opencode2`)
-- A Devin API key. Both legacy keys (`apk_` / `apk_user_`) and current service-user keys (`cog_`) work against the Devin v1 API. Generate one at https://app.devin.ai/settings/api-keys.
+- **OpenCode** — either v1 (`opencode-ai`, binary `opencode`) or v2 beta (`@opencode-ai/cli@next`, binary `opencode2`)
+- A **Devin API key**. Both legacy keys (`apk_` / `apk_user_`) and current service-user keys (`cog_`) work. Generate one at https://app.devin.ai/settings/api-keys.
 
 ## Install
 
-### As a published package
+### Option A: From npm (published package)
+
+#### OpenCode v2 (beta)
 
 Add to your project's `opencode.jsonc`:
 
@@ -34,17 +46,29 @@ Add to your project's `opencode.jsonc`:
 }
 ```
 
-### From source (local development)
+#### OpenCode v1 (stable)
 
-1. Clone this repo into your project (or a sibling directory).
-2. Install dependencies so OpenCode can resolve the plugin's imports:
+Add to your project's `opencode.json`:
+
+```json
+{
+  "plugin": ["opencode-devin-plugin/legacy"]
+}
+```
+
+### Option B: From source (local development)
+
+1. Clone this repo:
 
    ```sh
+   git clone https://github.com/karthiknish/devin-opencode.git
    cd devin-opencode
    npm install
    ```
 
-3. Reference the entrypoint from `opencode.jsonc`:
+2. Reference the plugin from your OpenCode config:
+
+   **OpenCode v2 (beta)** — `opencode.jsonc`:
 
    ```jsonc
    {
@@ -55,9 +79,42 @@ Add to your project's `opencode.jsonc`:
    }
    ```
 
+   **OpenCode v1 (stable)** — `opencode.json`:
+
+   ```json
+   {
+     "plugin": ["./devin-opencode/src/legacy.ts"]
+   }
+   ```
+
    Use an absolute path or `file://` URL if the plugin lives outside your project.
 
+### Option C: Copy into `.opencode/plugins/` (v1 only, simplest)
+
+1. Copy `src/legacy.ts` and `src/devin.ts` into `.opencode/plugins/` in your project:
+
+   ```sh
+   mkdir -p .opencode/plugins
+   cp devin-opencode/src/legacy.ts .opencode/plugins/devin.ts
+   cp devin-opencode/src/devin.ts .opencode/plugins/devin-api.ts
+   ```
+
+   Then edit `.opencode/plugins/devin.ts` to change the import path from `./devin.js` to `./devin-api.ts`.
+
+2. Add a `package.json` in `.opencode/` so dependencies are installed:
+
+   ```sh
+   cd .opencode
+   echo '{"dependencies":{"@opencode-ai/plugin":"latest"}}' > package.json
+   ```
+
+   OpenCode v1 runs `bun install` at startup to install these.
+
+3. The plugin is auto-loaded from `.opencode/plugins/` — no config entry needed.
+
 ## Connect your Devin account
+
+### OpenCode v2 (beta)
 
 Either:
 
@@ -67,17 +124,36 @@ Or:
 
 - `export DEVIN_API_KEY=cog_your_key_here` (or `apk_...`).
 
+### OpenCode v1 (stable)
+
+Set the environment variable before launching `opencode`:
+
+```sh
+export DEVIN_API_KEY=cog_your_key_here
+opencode
+```
+
+You can also add it to your shell profile (`.bashrc`, `.zshrc`, etc.) for persistence.
+
 ## Verify it loaded
+
+**OpenCode v2:**
 
 ```sh
 opencode2 api get /api/plugin
 ```
 
-You should see `devin.opencode` in the active plugin list. Then ask the OpenCode agent something like:
+You should see `devin.opencode` in the active plugin list.
+
+**OpenCode v1:**
+
+The plugin loads automatically at startup. Check the OpenCode logs if tools don't appear.
+
+Then ask the OpenCode agent:
 
 > Use devin_status to check if my Devin account is connected.
 
-## Configuration options
+## Configuration options (v2 only)
 
 Pass options via the object form in `opencode.jsonc`:
 
@@ -100,15 +176,17 @@ Pass options via the object form in `opencode.jsonc`:
 
 ```
 src/
-  index.ts   # plugin entrypoint: integration registration + tools
-  devin.ts   # typed Devin REST API (v1) client
-opencode.jsonc  # example config
+  index.ts    # v2 plugin entrypoint: integration registration + tools (default export)
+  legacy.ts   # v1 plugin entrypoint: hooks-based tools (named export DevinPlugin)
+  devin.ts    # shared typed Devin REST API (v1) client
+opencode.jsonc  # example config for v2
 ```
 
 ## Notes
 
 - The OpenCode v2 plugin API is beta; entrypoints and contracts may change before OpenCode 2.0 is stable. Match the `@opencode-ai/plugin` version to your OpenCode release.
-- API keys are resolved at tool-call time from the stored credential, falling back to `DEVIN_API_KEY`. No key is logged or persisted by the plugin beyond what OpenCode's credential store holds.
+- In v2, API keys are resolved at tool-call time from the stored credential, falling back to `DEVIN_API_KEY`. In v1, only `DEVIN_API_KEY` is used.
+- No key is logged or persisted by the plugin beyond what OpenCode's credential store (v2) or environment (v1) holds.
 
 ## License
 
