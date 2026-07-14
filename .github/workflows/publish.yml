@@ -33,6 +33,8 @@ jobs:
       # Bump the patch version and commit it back to main.
       # The commit message starts with "chore: bump version" which the
       # if-guard above checks for, preventing a re-trigger loop.
+      # Do NOT put skip-ci directives in any commit message in this repo —
+      # GitHub Actions honors them for ALL workflows on that push.
       - name: Bump version
         run: |
           git config user.name "github-actions[bot]"
