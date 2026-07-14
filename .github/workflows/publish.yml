@@ -26,6 +26,7 @@ jobs:
 
       - run: npm run typecheck
 
+      # Uses OIDC trusted publishing — no NPM_TOKEN needed.
+      # Requires trusted publisher configured on npmjs.com:
+      # https://www.npmjs.com/package/opencode-devin-plugin/access
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -190,16 +190,18 @@ opencode.jsonc  # example config for v2
 
 ## Releasing
 
-Publishing to npm is automated via GitHub Actions. CI runs typecheck on every push and PR; pushing a `v*` tag triggers a publish to npm with provenance.
+Publishing to npm is automated via GitHub Actions using **trusted publishing (OIDC)** — no npm tokens stored in GitHub secrets. CI runs typecheck on every push and PR; pushing a `v*` tag triggers a publish to npm with provenance.
 
-### One-time setup
+### One-time setup (already done)
 
-Create an npm access token (Automation or Granular type) at https://www.npmjs.com/settings/~/tokens, then add it as a repository secret:
+Trusted publishing is configured on npm for this package:
 
-```sh
-gh secret set NPM_TOKEN
-# paste your npm token when prompted
-```
+- **Package**: `opencode-devin-plugin`
+- **Publisher**: GitHub Actions
+- **Repository**: `karthiknish/devin-opencode`
+- **Workflow filename**: `publish.yml`
+
+No `NPM_TOKEN` secret is needed. npm trusts the workflow based on its OIDC identity.
 
 ### Release a new version
 
@@ -215,7 +217,7 @@ git push --follow-tags
 # 3. The Publish workflow runs automatically:
 #    - installs deps
 #    - typechecks
-#    - publishes to npm with --provenance --access public
+#    - publishes to npm via OIDC trusted publishing with --provenance
 ```
 
 Watch the run at https://github.com/karthiknish/devin-opencode/actions. The package appears at https://www.npmjs.com/package/opencode-devin-plugin once the workflow succeeds.
