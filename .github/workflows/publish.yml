@@ -22,11 +22,12 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
-          # Do NOT set registry-url here — it creates an .npmrc with
-          # NODE_AUTH_TOKEN that interferes with OIDC trusted publishing.
-          # npm CLI auto-detects the OIDC environment on its own.
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+
+      - run: npm install -g npm@latest
 
       - run: npm ci
 
