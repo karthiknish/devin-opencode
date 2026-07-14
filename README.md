@@ -188,6 +188,47 @@ opencode.jsonc  # example config for v2
 - In v2, API keys are resolved at tool-call time from the stored credential, falling back to `DEVIN_API_KEY`. In v1, only `DEVIN_API_KEY` is used.
 - No key is logged or persisted by the plugin beyond what OpenCode's credential store (v2) or environment (v1) holds.
 
+## Releasing
+
+Publishing to npm is automated via GitHub Actions. CI runs typecheck on every push and PR; pushing a `v*` tag triggers a publish to npm with provenance.
+
+### One-time setup
+
+Create an npm access token (Automation or Granular type) at https://www.npmjs.com/settings/~/tokens, then add it as a repository secret:
+
+```sh
+gh secret set NPM_TOKEN
+# paste your npm token when prompted
+```
+
+### Release a new version
+
+```sh
+# 1. Bump the version (updates package.json + creates a commit)
+npm version patch    # 0.1.0 → 0.1.1  (bug fixes)
+npm version minor    # 0.1.0 → 0.2.0  (new features, backwards-compatible)
+npm version major    # 0.1.0 → 1.0.0  (breaking changes)
+
+# 2. Push the commit and the tag
+git push --follow-tags
+
+# 3. The Publish workflow runs automatically:
+#    - installs deps
+#    - typechecks
+#    - publishes to npm with --provenance --access public
+```
+
+Watch the run at https://github.com/karthiknish/devin-opencode/actions. The package appears at https://www.npmjs.com/package/opencode-devin-plugin once the workflow succeeds.
+
+### Manual publish (fallback)
+
+If you ever need to publish from your machine instead:
+
+```sh
+npm login
+npm publish --access public
+```
+
 ## License
 
 MIT

@@ -6,6 +6,13 @@
   "type": "module",
   "license": "MIT",
   "keywords": ["opencode", "opencode-plugin", "devin", "cognition", "ai"],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/karthiknish/devin-opencode.git"
+  },
+  "homepage": "https://github.com/karthiknish/devin-opencode#readme",
+  "bugs": { "url": "https://github.com/karthiknish/devin-opencode/issues" },
+  "author": "Karthik Nishanth",
   "exports": {
     ".": {
       "import": "./src/index.ts",
@@ -18,7 +25,8 @@
   },
   "files": ["src"],
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "tsc --noEmit"
   },
   "dependencies": {
     "@opencode-ai/plugin": "next"
