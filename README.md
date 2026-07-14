@@ -205,25 +205,21 @@ No `NPM_TOKEN` secret is needed. npm trusts the workflow based on its OIDC ident
 
 ### Release a new version
 
+Every push to `main` automatically bumps the patch version and publishes to npm. No manual versioning needed.
+
 ```sh
-# 1. Bump the version (updates package.json + creates a commit)
-npm version patch    # 0.1.0 → 0.1.1  (bug fixes)
-npm version minor    # 0.1.0 → 0.2.0  (new features, backwards-compatible)
-npm version major    # 0.1.0 → 1.0.0  (breaking changes)
-
-# 2. Push
 git push
-
-# 3. The Publish workflow runs automatically:
-#    - installs deps
-#    - typechecks
-#    - checks if the version is new (skips if already on npm)
-#    - publishes to npm via OIDC trusted publishing with --provenance
 ```
 
-The workflow compares the version in `package.json` against what's on npm — if they match, it skips. So regular pushes that don't bump the version are a no-op.
+The workflow:
+1. Typechecks the code
+2. Bumps the patch version in `package.json` (e.g. `0.1.0` → `0.1.1`)
+3. Commits the version bump back to `main` (with `[skip ci]` to avoid a loop)
+4. Publishes the new version to npm via OIDC trusted publishing with `--provenance`
 
-Watch the run at https://github.com/karthiknish/devin-opencode/actions. The package appears at https://www.npmjs.com/package/opencode-devin-plugin once the workflow succeeds.
+The version bump commit is made by `github-actions[bot]` and is skipped by the workflow's `if` guard so it doesn't re-trigger itself.
+
+Watch runs at https://github.com/karthiknish/devin-opencode/actions. The package appears at https://www.npmjs.com/package/opencode-devin-plugin once the workflow succeeds.
 
 ### Manual publish (fallback)
 

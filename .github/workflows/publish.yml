@@ -5,15 +5,21 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
   publish:
-    name: Publish to npm
+    name: Bump version and publish to npm
     runs-on: ubuntu-latest
+    # Skip pushes made by the workflow itself (version bump commits)
+    if: github.actor != 'github-actions[bot]'
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Need full history and write access for the version bump commit
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v5
         with:
@@ -25,24 +31,20 @@ jobs:
 
       - run: npm run typecheck
 
-      # Skip if the version in package.json is already published on npm.
-      - name: Check if version is new
-        id: check
+      # Bump the patch version and commit it back to main.
+      # The [skip ci] in the commit message prevents re-triggering this workflow.
+      - name: Bump version
         run: |
-          LOCAL_VERSION=$(node -p "require('./package.json').version")
-          PUBLISHED_VERSION=$(npm view opencode-devin-plugin version 2>/dev/null || echo "none")
-          echo "local=$LOCAL_VERSION published=$PUBLISHED_VERSION"
-          if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then
-            echo "new=false"
-            echo "new=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "new=true"
-            echo "new=true" >> "$GITHUB_OUTPUT"
-          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          NEW_VERSION=$(npm version patch --no-git-tag-version)
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_ENV"
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push
 
       # Uses OIDC trusted publishing — no NPM_TOKEN needed.
       # Requires trusted publisher configured on npmjs.com:
       # https://www.npmjs.com/package/opencode-devin-plugin/access
       - name: Publish
-        if: steps.check.outputs.new == 'true'
         run: npm publish --provenance --access public
