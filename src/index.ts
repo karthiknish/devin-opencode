@@ -1,8 +1,11 @@
 import { Plugin } from "@opencode-ai/plugin/v2"
-import { Devin, DevinApiError } from "./devin.js"
+import { Devin, DevinApiError, resolveOrgId } from "./devin.js"
 
 const INTEGRATION_ID = "devin"
 const ENV_VAR = "DEVIN_API_KEY"
+
+/** Cached org_id for v3 API calls. */
+let cachedOrgId: string | undefined
 
 export interface DevinPluginOptions {
   /**
@@ -45,6 +48,21 @@ function requireApiKey(apiKey: string | undefined): string {
   return apiKey
 }
 
+/** Ensure we have an org_id (needed for v3 API with cog_ keys). */
+async function ensureOrgId(apiKey: string): Promise<string> {
+  if (cachedOrgId) return cachedOrgId
+  const orgId = await resolveOrgId(apiKey)
+  if (!orgId) {
+    throw new DevinApiError(
+      "Could not determine your Devin organization ID. Set DEVIN_ORG_ID env var.",
+      401,
+      undefined,
+    )
+  }
+  cachedOrgId = orgId
+  return orgId
+}
+
 function summarizeError(error: unknown): { message: string; status?: number } {
   if (error instanceof DevinApiError) return { message: error.message, status: error.status }
   if (error instanceof Error) return { message: error.message }
@@ -63,8 +81,8 @@ function renderSession(s: {
   status_enum?: string | null
   title?: string | null
   url?: string
-  created_at?: string
-  updated_at?: string
+  created_at?: string | number
+  updated_at?: string | number
 }): string {
   const title = s.title ? s.title : "untitled"
   const status = s.status_enum ?? s.status
@@ -170,7 +188,8 @@ export default Plugin.define({
           }
           const apiKey = requireApiKey(await getApiKey())
           try {
-            const session = await Devin.createSession(apiKey, {
+            const orgId = await ensureOrgId(apiKey)
+            const session = await Devin.createSession(apiKey, orgId, {
               prompt: args.prompt,
               title: args.title,
               playbook_id: args.playbook_id,
@@ -218,7 +237,8 @@ export default Plugin.define({
           }
           const apiKey = requireApiKey(await getApiKey())
           try {
-            const result = await Devin.listSessions(apiKey, {
+            const orgId = await ensureOrgId(apiKey)
+            const result = await Devin.listSessions(apiKey, orgId, {
               limit: args.limit ?? 20,
               offset: args.offset ?? 0,
               tags: args.tags,
@@ -259,7 +279,8 @@ export default Plugin.define({
           const args = input as { session_id: string }
           const apiKey = requireApiKey(await getApiKey())
           try {
-            const session = await Devin.getSession(apiKey, args.session_id)
+            const orgId = await ensureOrgId(apiKey)
+            const session = await Devin.getSession(apiKey, orgId, args.session_id)
             const messageLines = (session.messages ?? []).map(
               (m) => `[${m.timestamp}] ${m.type}: ${m.message}`,
             )
@@ -301,7 +322,8 @@ export default Plugin.define({
           const args = input as { session_id: string; message: string }
           const apiKey = requireApiKey(await getApiKey())
           try {
-            const result = await Devin.sendMessage(apiKey, args.session_id, args.message)
+            const orgId = await ensureOrgId(apiKey)
+            const result = await Devin.sendMessage(apiKey, orgId, args.session_id, args.message)
             const detail = result?.detail
             const text = detail
               ? `Message sent to Devin session ${args.session_id} (${detail}).`
@@ -337,7 +359,8 @@ export default Plugin.define({
           const args = input as { session_id: string }
           const apiKey = requireApiKey(await getApiKey())
           try {
-            const result = await Devin.terminateSession(apiKey, args.session_id)
+            const orgId = await ensureOrgId(apiKey)
+            const result = await Devin.terminateSession(apiKey, orgId, args.session_id)
             return {
               structured: { ok: true, session_id: args.session_id, detail: result.detail },
               content: [

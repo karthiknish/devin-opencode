@@ -44,7 +44,8 @@
     "prepublishOnly": "tsc --noEmit"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "next"
+    "@opencode-ai/plugin": "next",
+    "opencode-devin-plugin": "^0.1.5"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
