@@ -12,12 +12,11 @@ jobs:
   publish:
     name: Bump version and publish to npm
     runs-on: ubuntu-latest
-    # Skip pushes made by the workflow itself (version bump commits)
-    if: github.actor != 'github-actions[bot]'
+    # Skip version-bump commits pushed by this workflow
+    if: "!startsWith(github.event.head_commit.message, 'chore: bump version')"
     steps:
       - uses: actions/checkout@v5
         with:
-          # Need full history and write access for the version bump commit
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -32,7 +31,8 @@ jobs:
       - run: npm run typecheck
 
       # Bump the patch version and commit it back to main.
-      # The [skip ci] in the commit message prevents re-triggering this workflow.
+      # The commit message starts with "chore: bump version" which the
+      # if-guard above checks for, preventing a re-trigger loop.
       - name: Bump version
         run: |
           git config user.name "github-actions[bot]"
@@ -40,7 +40,7 @@ jobs:
           NEW_VERSION=$(npm version patch --no-git-tag-version)
           echo "new_version=$NEW_VERSION" >> "$GITHUB_ENV"
           git add package.json package-lock.json
-          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git commit -m "chore: bump version to $NEW_VERSION"
           git push
 
       # Uses OIDC trusted publishing — no NPM_TOKEN needed.

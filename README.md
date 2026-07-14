@@ -179,7 +179,9 @@ src/
   index.ts    # v2 plugin entrypoint: integration registration + tools (default export)
   legacy.ts   # v1 plugin entrypoint: hooks-based tools (named export DevinPlugin)
   devin.ts    # shared typed Devin REST API (v1) client
-opencode.jsonc  # example config for v2
+examples/
+  opencode.v2.jsonc  # example config for OpenCode v2
+  opencode.v1.json   # example config for OpenCode v1
 ```
 
 ## Notes
