@@ -24,7 +24,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          registry-url: https://registry.npmjs.org
+          # Do NOT set registry-url here — it creates an .npmrc with
+          # NODE_AUTH_TOKEN that interferes with OIDC trusted publishing.
+          # npm CLI auto-detects the OIDC environment on its own.
 
       - run: npm ci
 
@@ -33,8 +35,7 @@ jobs:
       # Bump the patch version and commit it back to main.
       # The commit message starts with "chore: bump version" which the
       # if-guard above checks for, preventing a re-trigger loop.
-      # Do NOT put skip-ci directives in any commit message in this repo —
-      # GitHub Actions honors them for ALL workflows on that push.
+      # Do NOT put ci-skip directives in any commit message in this repo.
       - name: Bump version
         run: |
           git config user.name "github-actions[bot]"
@@ -46,6 +47,8 @@ jobs:
           git push
 
       # Uses OIDC trusted publishing — no NPM_TOKEN needed.
+      # npm CLI auto-detects the OIDC environment and exchanges the
+      # short-lived token for a publish credential.
       # Requires trusted publisher configured on npmjs.com:
       # https://www.npmjs.com/package/opencode-devin-plugin/access
       - name: Publish
