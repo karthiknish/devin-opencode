@@ -1,26 +1,58 @@
 /**
- * Legacy entry point for OpenCode v1 (stable).
+ * OpenCode v1 (stable) plugin for Devin.
  *
- * OpenCode v1 plugins are modules that export one or more plugin functions.
- * Each function receives a context object and returns a hooks object. Custom
- * tools are registered via the `tool` hook using the `tool()` helper from
- * `@opencode-ai/plugin`.
- *
- * Unlike the v2 plugin, v1 has no integration/credential system, so the Devin
- * API key is read from the DEVIN_API_KEY environment variable.
+ * Registers a "devin" auth provider so users can connect via /connect in the
+ * OpenCode TUI and paste their Devin API key. The key is stored as an OpenCode
+ * credential and retrieved on plugin load. Falls back to the DEVIN_API_KEY
+ * environment variable if no credential is stored.
  *
  * Reference: https://opencode.ai/docs/plugins
  */
 import { tool, type Plugin as PluginType } from "@opencode-ai/plugin"
+import type { Auth } from "@opencode-ai/sdk"
 import { Devin, DevinApiError } from "./devin.js"
 
+const PROVIDER_ID = "devin"
 const ENV_VAR = "DEVIN_API_KEY"
 
-function getApiKey(): string {
-  const apiKey = process.env[ENV_VAR]
+/** Cached API key — populated from stored credential or env var. */
+let cachedApiKey: string | undefined
+
+/**
+ * Try to retrieve the stored Devin credential from the OpenCode server.
+ * The SDK doesn't expose a GET /auth/{id} method, so we fetch it directly.
+ */
+async function fetchStoredAuth(serverUrl: URL): Promise<string | undefined> {
+  try {
+    const res = await fetch(`${serverUrl.origin}/auth/${PROVIDER_ID}`, {
+      headers: { accept: "application/json" },
+    })
+    if (!res.ok) return undefined
+    const auth = (await res.json()) as Auth
+    if (auth?.type === "api" && auth.key) return auth.key
+  } catch {
+    // server not reachable or endpoint missing — fall through to env
+  }
+  return undefined
+}
+
+/** Resolve the API key from cache, stored credential, or env var. */
+async function resolveApiKey(serverUrl?: URL): Promise<string | undefined> {
+  if (cachedApiKey) return cachedApiKey
+  if (serverUrl) {
+    const stored = await fetchStoredAuth(serverUrl)
+    if (stored) {
+      cachedApiKey = stored
+      return stored
+    }
+  }
+  return process.env[ENV_VAR]
+}
+
+function requireApiKey(apiKey: string | undefined): string {
   if (!apiKey) {
     throw new DevinApiError(
-      `Devin API key not found. Set the ${ENV_VAR} environment variable with your Devin API key (cog_..., apk_..., or apk_user_...).`,
+      `Devin is not connected. Run /connect in the OpenCode TUI and choose Devin, or set the ${ENV_VAR} environment variable.`,
       401,
       undefined,
     )
@@ -51,20 +83,61 @@ function renderSession(s: {
 
 const z = tool.schema
 
-export const DevinPlugin: PluginType = async () => {
+export const DevinPlugin: PluginType = async ({ serverUrl }) => {
+  // Try to load the stored credential on startup so tools work immediately.
+  await resolveApiKey(serverUrl)
+
   return {
+    // Register Devin as an auth provider so it shows up in /connect.
+    auth: {
+      provider: PROVIDER_ID,
+      methods: [
+        {
+          type: "api",
+          label: "Devin API key",
+          prompts: [
+            {
+              type: "text",
+              key: "apiKey",
+              message: "Paste your Devin API key (cog_..., apk_..., or apk_user_...)",
+              placeholder: "cog_...",
+              validate: (value: string) => {
+                if (!value.trim()) return "API key is required"
+                if (!value.startsWith("cog_") && !value.startsWith("apk_") && !value.startsWith("apk_user_")) {
+                  return "Key must start with cog_, apk_, or apk_user_"
+                }
+                return undefined
+              },
+            },
+          ],
+          authorize: async (inputs) => {
+            const key = inputs?.apiKey?.trim()
+            if (!key) return { type: "failed" }
+            cachedApiKey = key
+            return { type: "success", key, provider: PROVIDER_ID }
+          },
+        },
+      ],
+    },
+
     tool: {
       // --- devin_status ---------------------------------------------------
       devin_status: tool({
         description:
-          "Check whether a Devin API key is configured. Takes no input.",
+          "Check whether a Devin API key is configured and report the auth source. Takes no input.",
         args: {},
         async execute() {
-          const connected = !!process.env[ENV_VAR]
-          const output = connected
-            ? `Devin is connected via environment variable (${ENV_VAR}).`
-            : `Devin is not connected. Set the ${ENV_VAR} environment variable.`
-          return { title: "Devin Status", output, metadata: { connected } }
+          const apiKey = await resolveApiKey(serverUrl)
+          const source = cachedApiKey
+            ? "stored credential (/connect)"
+            : apiKey
+              ? `environment variable (${ENV_VAR})`
+              : "not connected"
+          const output =
+            source === "not connected"
+              ? `Devin is not connected. Run /connect and choose Devin, or set ${ENV_VAR}.`
+              : `Devin is connected via ${source}.`
+          return { title: "Devin Status", output, metadata: { connected: source !== "not connected", source } }
         },
       }),
 
@@ -81,7 +154,8 @@ export const DevinPlugin: PluginType = async () => {
         },
         async execute(args) {
           try {
-            const session = await Devin.createSession(getApiKey(), {
+            const apiKey = requireApiKey(await resolveApiKey(serverUrl))
+            const session = await Devin.createSession(apiKey, {
               prompt: args.prompt,
               title: args.title,
               playbook_id: args.playbook_id,
@@ -110,7 +184,8 @@ export const DevinPlugin: PluginType = async () => {
         },
         async execute(args) {
           try {
-            const result = await Devin.listSessions(getApiKey(), {
+            const apiKey = requireApiKey(await resolveApiKey(serverUrl))
+            const result = await Devin.listSessions(apiKey, {
               limit: args.limit ?? 20,
               offset: args.offset ?? 0,
               tags: args.tags,
@@ -136,7 +211,8 @@ export const DevinPlugin: PluginType = async () => {
         },
         async execute(args) {
           try {
-            const session = await Devin.getSession(getApiKey(), args.session_id)
+            const apiKey = requireApiKey(await resolveApiKey(serverUrl))
+            const session = await Devin.getSession(apiKey, args.session_id)
             const messageLines = (session.messages ?? []).map(
               (m) => `[${m.timestamp}] ${m.type}: ${m.message}`,
             )
@@ -162,7 +238,8 @@ export const DevinPlugin: PluginType = async () => {
         },
         async execute(args) {
           try {
-            const result = await Devin.sendMessage(getApiKey(), args.session_id, args.message)
+            const apiKey = requireApiKey(await resolveApiKey(serverUrl))
+            const result = await Devin.sendMessage(apiKey, args.session_id, args.message)
             const detail = result?.detail
             return {
               title: "Message Sent",
@@ -186,7 +263,8 @@ export const DevinPlugin: PluginType = async () => {
         },
         async execute(args) {
           try {
-            const result = await Devin.terminateSession(getApiKey(), args.session_id)
+            const apiKey = requireApiKey(await resolveApiKey(serverUrl))
+            const result = await Devin.terminateSession(apiKey, args.session_id)
             return {
               title: "Session Terminated",
               output: `Terminated Devin session ${args.session_id}: ${result.detail}`,
