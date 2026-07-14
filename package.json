@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/package.json",
   "name": "opencode-devin-plugin",
   "version": "0.1.6",
-  "description": "OpenCode plugin (v1 and v2) to connect your Devin account and drive cloud Devin sessions from the OpenCode agent.",
+  "description": "OpenCode plugin (v1 and v2) to drive cloud Devin sessions from the OpenCode agent. Uses the Devin v3 API with cog_ service user keys.",
   "type": "module",
   "main": "./src/legacy.ts",
   "license": "MIT",
@@ -44,8 +44,7 @@
     "prepublishOnly": "tsc --noEmit"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "next",
-    "opencode-devin-plugin": "^0.1.5"
+    "@opencode-ai/plugin": "next"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
