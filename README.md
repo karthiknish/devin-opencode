@@ -211,14 +211,17 @@ npm version patch    # 0.1.0 → 0.1.1  (bug fixes)
 npm version minor    # 0.1.0 → 0.2.0  (new features, backwards-compatible)
 npm version major    # 0.1.0 → 1.0.0  (breaking changes)
 
-# 2. Push the commit and the tag
-git push --follow-tags
+# 2. Push
+git push
 
 # 3. The Publish workflow runs automatically:
 #    - installs deps
 #    - typechecks
+#    - checks if the version is new (skips if already on npm)
 #    - publishes to npm via OIDC trusted publishing with --provenance
 ```
+
+The workflow compares the version in `package.json` against what's on npm — if they match, it skips. So regular pushes that don't bump the version are a no-op.
 
 Watch the run at https://github.com/karthiknish/devin-opencode/actions. The package appears at https://www.npmjs.com/package/opencode-devin-plugin once the workflow succeeds.
 
